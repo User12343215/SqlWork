@@ -69,7 +69,6 @@ namespace ConsoleApp5
                                 Console.WriteLine("Найкращий предмет студента:");
                                 string NewMaxSubject = Console.ReadLine();
 
-                                schoolStudentsNew = schoolStudentsNew ?? new List<SchoolStudent>();
                                 var studentNew = new SchoolStudent()
                                 {
                                     Id = schoolStudents.Count + 1,
@@ -81,6 +80,7 @@ namespace ConsoleApp5
 
                                 };
 
+                                schoolStudentsNew = schoolStudentsNew ?? new List<SchoolStudent>();
                                 schoolStudents.Add(studentNew);
                                 schoolStudentsNew.Add(studentNew);
 
