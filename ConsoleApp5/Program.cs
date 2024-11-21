@@ -70,28 +70,19 @@ namespace ConsoleApp5
                                 string NewMaxSubject = Console.ReadLine();
 
                                 schoolStudentsNew = schoolStudentsNew ?? new List<SchoolStudent>();
-                                schoolStudents.Add(
-                                   new SchoolStudent()
-                                   {
-                                       Id = schoolStudents.Count+1,
-                                       Name = NewName,
-                                       GroupName = NewGroup,
-                                       AvgGrade = double.Parse(NewAvgGrade),
-                                       MinSubject = NewMinSubject,
-                                       MaxSubject = NewMaxSubject
+                                var studentNew = new SchoolStudent()
+                                {
+                                    Id = schoolStudents.Count + 1,
+                                    Name = NewName,
+                                    GroupName = NewGroup,
+                                    AvgGrade = double.Parse(NewAvgGrade),
+                                    MinSubject = NewMinSubject,
+                                    MaxSubject = NewMaxSubject
 
-                                   });
-                                schoolStudentsNew.Add(
-                                   new SchoolStudent()
-                                   {
-                                       Id = schoolStudents.Count + 1,
-                                       Name = NewName,
-                                       GroupName = NewGroup,
-                                       AvgGrade = double.Parse(NewAvgGrade),
-                                       MinSubject = NewMinSubject,
-                                       MaxSubject = NewMaxSubject
+                                };
 
-                                   });
+                                schoolStudents.Add(studentNew);
+                                schoolStudentsNew.Add(studentNew);
 
                                 break;
 
