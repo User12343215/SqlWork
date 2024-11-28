@@ -308,7 +308,6 @@ namespace ConsoleApp5
                     break;
 
                 default:
-                    Console.WriteLine("Неправильний вибір, за замовчуванням буде використано SQL Server.");
                     connectionString = configuration.GetConnectionString("FirstConnection");
                     break;
             }
