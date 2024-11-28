@@ -1,4 +1,5 @@
 ﻿using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Protocols;
 using System.Configuration;
 using System.Data;
@@ -13,13 +14,18 @@ namespace ConsoleApp5
     {
         private static DbProviderFactory factory;
         private static string connectionString;
+        private static Logger logger = new Logger();
 
         public static async Task Main(string[] args)
         {
-            string providerName = "Microsoft.Data.SqlClient";
-            string connectionString = @"Data Source=LINK\SQLEXPRESS;Initial Catalog=StudentGradesDB;Integrated Security=True;Connect Timeout=30;Encrypt=True;TrustServerCertificate=True;";
+            IConfigurationRoot configuration = new ConfigurationBuilder()
+                .AddJsonFile("appSettings.json")
+                .Build();
 
-            await SelectDatabaseAsync();
+            string providerName = configuration["ProviderName"];
+            string connectionString = configuration.GetConnectionString("FirstConnection");
+
+            await SelectDatabaseAsync(configuration);
 
             DbProviderFactories.RegisterFactory(providerName, SqlClientFactory.Instance);
 
@@ -66,12 +72,13 @@ namespace ConsoleApp5
                     }
                 }
                 stopwatch.Stop();
+                logger.LogQuery(query, stopwatch.ElapsedMilliseconds);
                 Console.WriteLine($"Час виконання запиту: {stopwatch.Elapsed.TotalSeconds} секунд.");
                 Console.ReadLine();
                 if (schoolStudents is not null)
                 {
-                    
-                    while(true)
+
+                    while (true)
                     {
                         Console.Clear();
                         Console.WriteLine("Меню:");
@@ -81,6 +88,8 @@ namespace ConsoleApp5
                         Console.WriteLine("4 - Оновити данні");
                         Console.WriteLine("5 - Видалити з бази");
                         Console.WriteLine("6 - Змінити датабазу");
+                        Console.WriteLine("7 - Експортувати дані в CSV");
+
 
                         var input = Console.ReadLine();
 
@@ -128,7 +137,7 @@ namespace ConsoleApp5
                                 try
                                 {
 
-                                
+                                    stopwatch = Stopwatch.StartNew();
                                     query = "INSERT INTO StudentGrades (FullName, GroupName, AverageGrade, MinSubject, MaxSubject) VALUES (@fullName, @groupName, @averageGrade, @minSubject, @maxSubject)";
                                     using (DbCommand insertCommand = connection.CreateCommand())
                                     {
@@ -168,14 +177,16 @@ namespace ConsoleApp5
                                             if (rowsAffected < 0)
                                                 Console.WriteLine("Error inserting student into database");
                                         }
-                                    schoolStudentsNew.Clear();
-                                    Console.WriteLine("Database updated");
+                                        stopwatch.Stop();
+                                        logger.LogQuery(query, stopwatch.ElapsedMilliseconds);
+                                        schoolStudentsNew.Clear();
+                                        Console.WriteLine("Database updated");
                                     }
                                 }
                                 catch
                                 {
                                     Console.WriteLine("List is empty");
-                                    
+
                                 }
                                 Console.ReadLine();
                                 break;
@@ -187,6 +198,7 @@ namespace ConsoleApp5
                                 string newName = Console.ReadLine();
 
                                 query = "UPDATE StudentGrades SET FullName = @fullName WHERE Id = @id";
+                                stopwatch = Stopwatch.StartNew();
                                 using (DbCommand updateCommand = connection.CreateCommand())
                                 {
                                     updateCommand.CommandText = query;
@@ -207,6 +219,8 @@ namespace ConsoleApp5
                                     if (rowsAffected < 0)
                                         Console.WriteLine("Error updating");
                                 }
+                                stopwatch.Stop();
+                                logger.LogQuery(query, stopwatch.ElapsedMilliseconds);
                                 break;
 
                             case "5":
@@ -214,6 +228,7 @@ namespace ConsoleApp5
                                 int deleteId = int.Parse(Console.ReadLine());
 
                                 query = "DELETE FROM StudentGrades WHERE Id = @id";
+                                stopwatch = Stopwatch.StartNew();
                                 using (DbCommand deleteCommand = connection.CreateCommand())
                                 {
                                     deleteCommand.CommandText = query;
@@ -229,10 +244,16 @@ namespace ConsoleApp5
                                     if (rowsAffected < 0)
                                         Console.WriteLine("Error deleting");
                                 }
+                                stopwatch.Stop();
+                                logger.LogQuery(query, stopwatch.ElapsedMilliseconds);
                                 break;
                             case "6":
-                                await SelectDatabaseAsync();
+                                await SelectDatabaseAsync(configuration);
                                 break;
+                            case "7":
+                                await ExportToCsvAsync(schoolStudents);
+                                break;
+
                             default:
                                 break;
                         }
@@ -245,7 +266,31 @@ namespace ConsoleApp5
                 }
             }
         }
-        private static async Task SelectDatabaseAsync()
+
+        private static async Task ExportToCsvAsync(List<SchoolStudent> schoolStudents)
+        {
+            if (schoolStudents == null || schoolStudents.Count == 0)
+            {
+                Console.WriteLine("Немає даних для експорту.");
+                return;
+            }
+
+            using (var writer = new StreamWriter("students_export.csv"))
+            {
+                await writer.WriteLineAsync("Id,Name,GroupName,AvgGrade,MinSubject,MaxSubject");
+
+                foreach (var student in schoolStudents)
+                {
+                    string line = $"{student.Id},{student.Name},{student.GroupName},{student.AvgGrade},{student.MinSubject},{student.MaxSubject}";
+                    await writer.WriteLineAsync(line);
+                }
+            }
+
+            // Повідомлення про завершення
+            Console.WriteLine($"Дані успішно експортовані у файл \"students_export.csv\"");
+        }
+
+        private static async Task SelectDatabaseAsync(IConfigurationRoot configuration)
         {
             Console.WriteLine("Оберіть СКБД:");
             Console.WriteLine("1 - 1A Class");
@@ -256,16 +301,16 @@ namespace ConsoleApp5
             switch (choice)
             {
                 case "1":
-                    connectionString = @"Data Source=LINK\SQLEXPRESS;Initial Catalog=StudentGradesDB;Integrated Security=True;Connect Timeout=30;Encrypt=True;TrustServerCertificate=True;";
+                    connectionString = configuration.GetConnectionString("FirstConnection");
                     break;
 
                 case "2":
-                    connectionString = @"Data Source=LINK\SQLEXPRESS;Initial Catalog=StudentGrades1DB;Integrated Security=True;Connect Timeout=30;Encrypt=True;TrustServerCertificate=True;";
+                    connectionString = configuration.GetConnectionString("SecondConnection");
                     break;
 
                 default:
                     Console.WriteLine("Неправильний вибір, за замовчуванням буде використано SQL Server.");
-                    connectionString = @"Data Source=LINK\SQLEXPRESS;Initial Catalog=StudentGradesDB;Integrated Security=True;Connect Timeout=30;Encrypt=True;TrustServerCertificate=True;";
+                    connectionString = configuration.GetConnectionString("FirstConnection");
                     break;
             }
 
@@ -273,7 +318,27 @@ namespace ConsoleApp5
         }
     }
 
-    public class SchoolStudent
+    public class Logger
+    {   
+        private string LogDirectory => "Logs";
+        private string CurrentLogFile => Path.Combine(LogDirectory, $"{DateTime.Now:yyyy-MM-dd}.log");
+
+        public Logger()
+        {
+            if (!Directory.Exists(LogDirectory))
+            {
+                Directory.CreateDirectory(LogDirectory);
+            }
+        }
+
+        public void LogQuery(string query, long durationMs)
+        {
+            string logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Query: {query} | Duration: {durationMs} ms\n";
+
+            File.AppendAllText(CurrentLogFile, logMessage);
+        }
+    }
+        public class SchoolStudent
     {
         public int Id { get; set; }
         public string Name { get; set; }
