@@ -5,6 +5,7 @@ using System.Configuration;
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
+using System.Text;
 
 
 
@@ -89,7 +90,7 @@ namespace ConsoleApp5
                         Console.WriteLine("5 - Видалити з бази");
                         Console.WriteLine("6 - Змінити датабазу");
                         Console.WriteLine("7 - Експортувати дані в CSV");
-
+                        Console.WriteLine("8 - Імпортувати дані в CSV");
 
                         var input = Console.ReadLine();
 
@@ -253,7 +254,11 @@ namespace ConsoleApp5
                             case "7":
                                 await ExportToCsvAsync(schoolStudents);
                                 break;
-
+                            case "8":
+                                Console.WriteLine("Введіть шлях до CSV файлу:");
+                                string filePath = Console.ReadLine();
+                                await ImportFromCsvAsync(connection, filePath);
+                                break;
                             default:
                                 break;
                         }
@@ -266,6 +271,106 @@ namespace ConsoleApp5
                 }
             }
         }
+        private static async Task ImportFromCsvAsync(DbConnection connection, string filePath)
+        {
+            if (!File.Exists(filePath))
+            {
+                Console.WriteLine($"Файл {filePath} не знайдено.");
+                return;
+            }
+
+            List<SchoolStudent> studentsToInsert = new List<SchoolStudent>();
+            List<SchoolStudent> failedToInsert = new List<SchoolStudent>();
+            int successfulImports = 0;
+            int failedImports = 0;
+
+            using (var reader = new StreamReader(filePath))
+            {
+                await reader.ReadLineAsync();
+
+                while (!reader.EndOfStream)
+                {
+                    var line = await reader.ReadLineAsync();
+                    var values = line.Split(',');
+
+                    if (values.Length < 6)
+                    {
+                        failedImports++;
+                        continue;
+                    }
+                    if (!double.TryParse(values[3], out double avgGrade))
+                    {
+                        failedImports++;
+                        continue;
+                    }
+
+                    var student = new SchoolStudent
+                    {
+                        Id = studentsToInsert.Count + 1,
+                        Name = values[1],
+                        GroupName = values[2],
+                        AvgGrade = avgGrade,
+                        MinSubject = values[4],
+                        MaxSubject = values[5]
+                    };
+
+                    studentsToInsert.Add(student);
+                }
+            }
+
+            foreach (var student in studentsToInsert)
+            {
+                try
+                {
+                    string query = "INSERT INTO StudentGrades (FullName, GroupName, AverageGrade, MinSubject, MaxSubject) " +
+                                   "VALUES (@fullName, @groupName, @averageGrade, @minSubject, @maxSubject)";
+                    using (DbCommand insertCommand = connection.CreateCommand())
+                    {
+                        insertCommand.CommandText = query;
+                        insertCommand.CommandType = CommandType.Text;
+
+                        var nameParameter = insertCommand.CreateParameter();
+                        nameParameter.ParameterName = "@fullName";
+                        nameParameter.Value = student.Name;
+
+                        var groupParameter = insertCommand.CreateParameter();
+                        groupParameter.ParameterName = "@groupName";
+                        groupParameter.Value = student.GroupName;
+
+                        var avgGradeParameter = insertCommand.CreateParameter();
+                        avgGradeParameter.ParameterName = "@averageGrade";
+                        avgGradeParameter.Value = student.AvgGrade;
+
+                        var minSubjectParameter = insertCommand.CreateParameter();
+                        minSubjectParameter.ParameterName = "@minSubject";
+                        minSubjectParameter.Value = student.MinSubject;
+
+                        var maxSubjectParameter = insertCommand.CreateParameter();
+                        maxSubjectParameter.ParameterName = "@maxSubject";
+                        maxSubjectParameter.Value = student.MaxSubject;
+
+                        insertCommand.Parameters.Add(nameParameter);
+                        insertCommand.Parameters.Add(groupParameter);
+                        insertCommand.Parameters.Add(avgGradeParameter);
+                        insertCommand.Parameters.Add(minSubjectParameter);
+                        insertCommand.Parameters.Add(maxSubjectParameter);
+
+                        int rowsAffected = await insertCommand.ExecuteNonQueryAsync();
+                        if (rowsAffected > 0)
+                            successfulImports++;
+                        else
+                            failedImports++;
+                    }
+                }
+                catch (Exception)
+                {
+                    failedImports++;
+                }
+            }
+
+            Console.WriteLine($"Імпорт завершено. Успішно додано: {successfulImports} записів.");
+            Console.WriteLine($"Не вдалося додати: {failedImports} записів.");
+        }
 
         private static async Task ExportToCsvAsync(List<SchoolStudent> schoolStudents)
         {
@@ -275,7 +380,7 @@ namespace ConsoleApp5
                 return;
             }
 
-            using (var writer = new StreamWriter("students_export.csv"))
+            using (var writer = new StreamWriter("students_export.csv", false, Encoding.UTF8))
             {
                 await writer.WriteLineAsync("Id,Name,GroupName,AvgGrade,MinSubject,MaxSubject");
 
@@ -336,7 +441,7 @@ namespace ConsoleApp5
             File.AppendAllText(CurrentLogFile, logMessage);
         }
     }
-        public class SchoolStudent
+    public class SchoolStudent
     {
         public int Id { get; set; }
         public string Name { get; set; }
