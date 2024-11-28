@@ -286,7 +286,6 @@ namespace ConsoleApp5
                 }
             }
 
-            // Повідомлення про завершення
             Console.WriteLine($"Дані успішно експортовані у файл \"students_export.csv\"");
         }
 
